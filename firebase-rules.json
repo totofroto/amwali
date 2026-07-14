@@ -1,0 +1,21 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "farms": {
+      "$code": {
+        ".read": true,
+        ".write": true
+      }
+    },
+
+    "amwali": {
+      "$code": {
+        ".read":  "$code.length >= 16",
+        ".write": "$code.length >= 16",
+        ".validate": true
+      }
+    }
+  }
+}
