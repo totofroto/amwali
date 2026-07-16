@@ -845,7 +845,20 @@ function loginConfirm(){
   renderHeader(); if(currentTab==='home')renderHome(); if(currentTab==='settings')renderSettings();
   toast('أهلاً '+u.name+' 👋'); sndOk();
 }
-function switchUser(){ showLogin(); }
+function logout(){
+  ME=null; try{localStorage.removeItem(ME_KEY);}catch(e){}
+  renderHeader(); showLogin();
+}
+function switchUser(){ logout(); }
+function addFamilyMembers(){
+  const names=['طارق','دويني','سعاد','فاطمة','بدر','علي'];
+  const missing=names.filter(n=>!S.users.some(u=>u.name.trim()===n));
+  if(!missing.length){toast('كل أفراد العائلة موجودون ✅'); return;}
+  if(!confirm('سيُضاف: '+missing.join('، ')+'\n(إن كان أحدهم موجوداً باسم آخر — مثل «سوسو» بدل «سعاد» — الأفضل تعديل اسمه بدل الإضافة)\nمتابعة؟'))return;
+  missing.forEach(n=>S.users.push({id:uid(),name:n,pin:null,private:false}));
+  save(); renderSettings(); refreshFormSelects();
+  toast('أُضيف: '+missing.join('، ')+' ✅'); sndOk();
+}
 function loginCheck(){
   const u=me();
   if(!u || u.pin) showLogin();   // no identity yet, or identity is PIN-protected → ask on every open
