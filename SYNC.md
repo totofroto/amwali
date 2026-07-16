@@ -6,12 +6,14 @@
 /amwali/{familyCode}/
     meta                → settings blob  { appName, users, adminId, theme,
                                            currencies, cats, pin, sound, notify, _u }
+                          (users[] entries now carry per-person `pin` and `private`)
     tx/{id}             → one node per transaction, each carries _u
     transfers/{id}
     debts/{id}
     budgets/{id}
     recurring/{id}
     goals/{id}
+    audit/{id}          → deletion log: {id, ts, action, coll, summary, reason, by, _u}
 
 /amwali/{familyCode}-backups/{timestamp}   → daily full snapshot, newest 30 kept
 ```

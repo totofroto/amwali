@@ -13,6 +13,8 @@
 | `app.js` | كل المنطق — state, sync, reports, PDF |
 | `SYNC.md` | شرح آلية المزامنة (per-record merge) |
 | `firebase-rules.json` | قواعد الأمان لقاعدة البيانات |
+| `PROJECT_STATE.md` | **ذاكرة المشروع** — ماذا أنجزنا وأين نحن (اقرأه أولاً) |
+| `ROADMAP.md` | خارطة الطريق — ماذا سنفعل لاحقاً |
 
 No build step. Static site, served from repo root by GitHub Pages.
 
