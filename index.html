@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=8">
+<link rel="stylesheet" href="styles.css?v=9">
 </head>
 <body>
 <div id="toast"></div>
@@ -33,13 +33,17 @@
 
 <header>
   <div class="brand">
-    <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7H6a2.5 2.5 0 0 1 0-5h11.5v5"/><path d="M19 7a2 2 0 0 1 2 2v9a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V4.5"/><circle cx="16.5" cy="13.5" r="1" fill="currentColor" stroke="none"/></svg></div>
+    <div class="logo" id="appLogo" onclick="openAvatarModal('app')" style="cursor:pointer" title="تغيير الشعار"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7H6a2.5 2.5 0 0 1 0-5h11.5v5"/><path d="M19 7a2 2 0 0 1 2 2v9a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V4.5"/><circle cx="16.5" cy="13.5" r="1" fill="currentColor" stroke="none"/></svg></div>
     <div>
       <h1 id="appName">أموالي</h1>
       <div class="sub" id="todayLine"></div>
     </div>
   </div>
-  <button class="user-chip" onclick="switchUser()" title="تبديل المستخدم">👤 <span id="adminChip"></span></button>
+  <div style="display:flex;gap:7px;align-items:center">
+    <button class="user-chip icon-chip" id="darkBtnTop" onclick="toggleDark()" title="الوضع الليلي">🌙</button>
+    <button class="user-chip icon-chip" onclick="openAbout()" title="حول المنظومة">ℹ️</button>
+    <button class="user-chip" onclick="switchUser()" title="تبديل المستخدم"><span id="meAvatar">👤</span> <span id="adminChip"></span></button>
+  </div>
 </header>
 
 <nav id="nav">
@@ -196,6 +200,18 @@
     <div class="set-row">
       <div><div class="s1">🙈 خصوصية رصيدي</div><div class="s2" id="myPrivStatus">ظاهر للجميع</div></div>
       <button class="btn btn-ghost btn-sm" onclick="toggleMyPrivacy()" id="myPrivBtn">إخفاء</button>
+    </div>
+    <div class="set-row">
+      <div><div class="s1">🖼️ صورتي الرمزية (الأفاتار)</div><div class="s2" id="myAvatarNow">👤</div></div>
+      <button class="btn btn-ghost btn-sm" onclick="openAvatarModal('me')">اختيار</button>
+    </div>
+    <div class="set-row">
+      <div><div class="s1">💠 شعار المنظومة</div><div class="s2" id="appIconNow">الشعار الأصلي</div></div>
+      <button class="btn btn-ghost btn-sm" onclick="openAvatarModal('app')">تغيير</button>
+    </div>
+    <div class="set-row">
+      <div><div class="s1">ℹ️ حول المنظومة</div><div class="s2">المطور، السنة، الإصدار، الإحصاءات</div></div>
+      <button class="btn btn-ghost btn-sm" onclick="openAbout()">عرض</button>
     </div>
     <div class="set-row">
       <div><div class="s1">🚪 تسجيل الخروج</div><div class="s2">العودة إلى شاشة اختيار الأسماء</div></div>
@@ -462,6 +478,28 @@
   </div>
 </div>
 
+<!-- ===== AVATAR / APP-ICON PICKER ===== -->
+<div class="modal-bg" id="avatarModal">
+  <div class="modal">
+    <h2><span id="avatarModalTitle">اختر صورتك الرمزية</span><button class="x" onclick="closeModal('avatarModal')">✕</button></h2>
+    <div class="avatar-grid" id="avatarGrid"></div>
+    <label>أو رمز تعبيري من عندك</label>
+    <div style="display:flex;gap:8px">
+      <input type="text" id="avatarCustom" placeholder="🐫" style="flex:1">
+      <button class="btn btn-primary btn-sm" onclick="customAvatar()">تطبيق</button>
+    </div>
+    <button class="btn btn-ghost btn-sm" id="resetIconBtn" style="margin-top:10px;display:none" onclick="resetAppIcon()">↩ العودة للشعار الأصلي</button>
+  </div>
+</div>
+
+<!-- ===== ABOUT MODAL — حول المنظومة ===== -->
+<div class="modal-bg" id="aboutModal">
+  <div class="modal">
+    <h2>ℹ️ حول المنظومة<button class="x" onclick="closeModal('aboutModal')">✕</button></h2>
+    <div id="aboutBody"></div>
+  </div>
+</div>
+
 <!-- ===== SYNC CODE MODAL ===== -->
 <div class="modal-bg" id="syncModal">
   <div class="modal">
@@ -481,7 +519,7 @@
   </div>
 </div>
 
-<script src="app.js?v=8"></script>
+<script src="app.js?v=9"></script>
 
 </body>
 </html>

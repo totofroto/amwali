@@ -1,4 +1,5 @@
 /* ================= STATE ================= */
+const APP_VER='v9';
 const LS_KEY='amwali_v1';
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const today=()=>new Date().toISOString().slice(0,10);
@@ -6,6 +7,7 @@ const thisMonth=()=>new Date().toISOString().slice(0,7);
 
 const DEFAULTS={
   appName:'أموالي',
+  appIcon:'',
   users:[
     {id:'u1',name:'طارق',pin:null,private:false},
     {id:'u2',name:'دويني',pin:null,private:false},
@@ -107,6 +109,7 @@ function applyTheme(){
   const t=S.theme;
   document.body.classList.toggle('dark',!!t.dark);
   document.getElementById('darkBtn').textContent=t.dark?'☀️':'🌙';
+  const tb=document.getElementById('darkBtnTop'); if(tb)tb.textContent=t.dark?'☀️':'🌙';
   if(t.customBg){
     document.body.classList.add('custom-bg');
     document.body.style.setProperty('--custom-bg',`url(${t.customBg})`);
@@ -128,11 +131,72 @@ function setCustomBg(inp){
 function clearCustomBg(){S.theme.customBg=null; save(); applyTheme(); toast('تمت إزالة الصورة');}
 
 /* ================= HEADER ================= */
+const LOGO_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7H6a2.5 2.5 0 0 1 0-5h11.5v5"/><path d="M19 7a2 2 0 0 1 2 2v9a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V4.5"/><circle cx="16.5" cy="13.5" r="1" fill="currentColor" stroke="none"/></svg>';
 function renderHeader(){
   document.getElementById('appName').textContent=S.appName;
   document.title=S.appName+' — منظومة إدارة الأموال';
   document.getElementById('adminChip').textContent=me()?me().name:'من أنت؟';
+  const av=document.getElementById('meAvatar');
+  if(av)av.textContent=(me()&&me().avatar)||'👤';
+  const lg=document.getElementById('appLogo');
+  if(lg){ if(S.appIcon){ lg.textContent=S.appIcon; } else if(!lg.querySelector('svg')){ lg.innerHTML=LOGO_SVG; } }
+  try{
+    const ic=S.appIcon||'💰';
+    document.querySelector("link[rel='icon']").href='data:image/svg+xml,'+encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='#0b5d52'/><text x='50' y='68' font-size='52' text-anchor='middle'>"+ic+"</text></svg>");
+  }catch(e){}
   document.getElementById('todayLine').textContent=new Date().toLocaleDateString('ar-LY',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+}
+
+/* ================= AVATARS & APP ICON — صور رمزية وشعار ================= */
+const AVATARS=['🦁','🦅','🐎','🦊','🐪','🦉','🕊️','🐬','👑','⚔️','🛡️','🌙','⭐','☀️','🔥','💎','🌊','🌹','🌴','🏔️','🎯','🪶','🏇','⚜️'];
+const APP_ICONS=['💰','🏦','💎','🪙','👛','🏆','🌙','⚜️','🕌','✨','📊','🧿'];
+let avatarMode='me';
+function openAvatarModal(mode){
+  avatarMode=mode||'me';
+  if(avatarMode==='me'&&!me()){ showLogin(); return; }
+  document.getElementById('avatarModalTitle').textContent=avatarMode==='app'?'💠 اختر شعار المنظومة':'🖼️ اختر صورتك الرمزية';
+  const list=avatarMode==='app'?APP_ICONS:AVATARS;
+  const cur=avatarMode==='app'?S.appIcon:((me()||{}).avatar);
+  document.getElementById('avatarGrid').innerHTML=list.map(a=>
+    `<button class="avatar-opt ${cur===a?'on':''}" onclick="pickAvatar('${a}')">${a}</button>`).join('');
+  document.getElementById('avatarCustom').value='';
+  document.getElementById('resetIconBtn').style.display=avatarMode==='app'?'':'none';
+  document.getElementById('avatarModal').classList.add('open');
+}
+function pickAvatar(a){ applyAvatar(a); }
+function customAvatar(){
+  const v=document.getElementById('avatarCustom').value.trim();
+  if(!v){toast('⚠️ اكتب رمزاً تعبيرياً أولاً'); return;}
+  applyAvatar(v.slice(0,8));
+}
+function applyAvatar(a){
+  if(avatarMode==='app'){ S.appIcon=a; toast('تم تغيير شعار المنظومة ✨'); }
+  else{ const u=me(); if(!u)return; u.avatar=a; toast('تم تغيير صورتك الرمزية ✨'); }
+  save(); closeModal('avatarModal'); sndOk();
+  renderHeader(); renderSettings(); if(currentTab==='home')renderHome(); renderLoginUsers();
+}
+function resetAppIcon(){
+  S.appIcon=''; save(); closeModal('avatarModal');
+  const lg=document.getElementById('appLogo'); if(lg)lg.innerHTML=LOGO_SVG;
+  renderHeader(); renderSettings(); toast('عاد الشعار الأصلي 💛');
+}
+
+/* ================= ABOUT — حول المنظومة ================= */
+function openAbout(){
+  document.getElementById('aboutBody').innerHTML=`
+    <div style="text-align:center;margin-bottom:14px">
+      <div style="font-size:52px">${S.appIcon||'💰'}</div>
+      <div style="font-size:20px;font-weight:800;margin-top:4px">${esc(S.appName)}</div>
+      <div style="font-size:12px;color:var(--muted)">منظومة إدارة الأموال العائلية · الإصدار ${APP_VER}</div>
+    </div>
+    <div class="set-row"><div><div class="s1">👨‍💻 صاحب الفكرة والمشرف</div><div class="s2">طارق الشيخ (توتوفروتو)</div></div></div>
+    <div class="set-row"><div><div class="s1">🤖 البرمجة</div><div class="s2">بُنيت بمساعدة Claude من Anthropic</div></div></div>
+    <div class="set-row"><div><div class="s1">📅 السنة</div><div class="s2">2025 – 2026</div></div></div>
+    <div class="set-row"><div><div class="s1">🌍 أين</div><div class="s2">ألمانيا ↔ ليبيا (طرابلس · ودان)</div></div></div>
+    <div class="set-row"><div><div class="s1">⚙️ التقنية</div><div class="s2">HTML/CSS/JS · Firebase · GitHub Pages — بلا أي إطار عمل</div></div></div>
+    <div class="set-row"><div><div class="s1">📊 بياناتكم الآن</div><div class="s2">${S.tx.length} معاملة · ${S.transfers.length} حوالة · ${S.debts.length} دين · ${S.users.length} أفراد</div></div></div>
+    <div style="text-align:center;font-size:11px;color:var(--muted);margin-top:12px">صُنعت بحب لعائلة الشيخ ❤️</div>`;
+  document.getElementById('aboutModal').classList.add('open');
 }
 
 /* ================= HOME ================= */
@@ -197,7 +261,7 @@ function renderFamily(){
       lines=ent.length?ent.map(([c,v])=>`<div class="big ${v>=0?'pos':'neg'}" style="font-size:15px">${fmt(v)} ${esc(c)}</div>`).join('')
         :'<div class="big" style="font-size:15px;color:var(--muted)">0</div>';
     }
-    return `<div class="card"><h3>👤 ${esc(u.name)}${u.id===ME?' <span style="color:var(--accent)">(أنت)</span>':''}${u.private?' 🙈':''}</h3>${lines}
+    return `<div class="card"><h3><span style="font-size:17px">${esc(u.avatar||'👤')}</span> ${esc(u.name)}${u.id===ME?' <span style="color:var(--accent)">(أنت)</span>':''}${u.private?' 🙈':''}</h3>${lines}
       <div style="font-size:10px;color:var(--muted);margin-top:4px">${hidden?'اختار صاحب الحساب الخصوصية':'دخله − مصروفه − ما أرسل + ما استلم'}</div></div>`;
   }).join('');
 }
@@ -498,7 +562,7 @@ function renderSettings(){
     `<div class="bg-opt ${!S.theme.customBg&&S.theme.preset===i?'on':''}" style="background:linear-gradient(135deg,${bg[0]},${bg[1]})" onclick="setBg(${i})"></div>`).join('');
   // users
   document.getElementById('userChips').innerHTML=S.users.map(u=>
-    `<span class="chip">${u.id===S.adminId?'👑 ':''}${esc(u.name)} <span style="cursor:pointer" onclick="renameUser('${u.id}')">✏️</span>${u.id!==S.adminId?` <span class="del" onclick="delUser('${u.id}')">✕</span>`:''}</span>`).join('');
+    `<span class="chip">${u.id===S.adminId?'👑 ':''}${esc(u.avatar||'')} ${esc(u.name)} <span style="cursor:pointer" onclick="renameUser('${u.id}')">✏️</span>${u.id!==S.adminId?` <span class="del" onclick="delUser('${u.id}')">✕</span>`:''}</span>`).join('');
   // currencies
   document.getElementById('curChips').innerHTML=S.currencies.map(c=>
     `<span class="chip">${esc(c.code)} — ${esc(c.name)} <span class="del" onclick="delCurrency('${esc(c.code)}')">✕</span></span>`).join('');
@@ -517,6 +581,8 @@ function renderSettings(){
   document.getElementById('myPinBtn').textContent=meU&&meU.pin?'تغيير':'تعيين';
   document.getElementById('myPrivStatus').textContent=meU&&meU.private?'رصيدك مخفي عن الآخرين 🙈':'رصيدك ظاهر للجميع';
   document.getElementById('myPrivBtn').textContent=meU&&meU.private?'إظهار':'إخفاء';
+  document.getElementById('myAvatarNow').textContent=(meU&&meU.avatar)||'👤 (لم تُحدَّد)';
+  document.getElementById('appIconNow').textContent=S.appIcon||'💼 الشعار الأصلي';
   // sound & notify
   document.getElementById('soundBtn').textContent=S.sound===false?'🔇 مغلقة':'🔊 مفعلة';
   document.getElementById('notifBtn').textContent=S.notify===false?'🔕 مغلقة':'🔔 مفعلة';
@@ -832,7 +898,7 @@ function showLogin(){
 function renderLoginUsers(){
   const el=document.getElementById('loginUsers'); if(!el)return;
   el.innerHTML=S.users.map(u=>
-    `<button class="login-user ${loginSel===u.id?'on':''}" onclick="loginPick('${u.id}')">👤 ${esc(u.name)}${u.pin?' 🔒':''}</button>`).join('');
+    `<button class="login-user ${loginSel===u.id?'on':''}" onclick="loginPick('${u.id}')"><span style="font-size:22px">${esc(u.avatar||'👤')}</span><br>${esc(u.name)}${u.pin?' 🔒':''}</button>`).join('');
 }
 function loginPick(id){
   loginSel=id; renderLoginUsers();
@@ -1389,7 +1455,7 @@ function buildMonthReport(){
 let currentTab='home', pushTimer=null, lastSyncStr=null, syncBusy=false;
 
 const COLLS=['tx','transfers','debts','budgets','recurring','goals','audit'];
-const META_KEYS=['appName','users','adminId','theme','currencies','cats','pin','sound','notify'];
+const META_KEYS=['appName','appIcon','users','adminId','theme','currencies','cats','pin','sound','notify'];
 const SHADOW_KEY='amwali_shadow_v2';
 const TOMB_TTL=90*24*60*60*1000;   // drop tombstones after 90 days
 
