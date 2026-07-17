@@ -3,7 +3,13 @@
 > **لأي جلسة ذكاء اصطناعي جديدة: اقرأ هذا الملف أولاً، ثم `PROJECT_INSTRUCTIONS.md`، ثم `SYNC.md`، ثم `ROADMAP.md`. لا تبدأ أي عمل قبل قراءتها.**
 > **حدّث هذا الملف في نهاية كل جلسة عمل** — هذا الملف هو ذاكرة المشروع.
 
-آخر تحديث: **2026-07-16** — الجلسة: تسجيل الخروج + زر إكمال أفراد العائلة (v7)
+آخر تحديث: **2026-07-16** — الجلسة: المرحلة 3 — الأمان (v8)
+
+### المرحلة 3 — الأمان (كود منجز v8 — بانتظار خطوات Firebase Console)
+- **مصادقة مجهولة عبر REST بدون SDK:** إذا أُدخل `S.sync.apiKey` (حقل جديد في الإعدادات وفي مودال الرمز)، `authToken()` يسجّل دخولاً مجهولاً عبر `identitytoolkit.googleapis.com/v1/accounts:signUp` ويجدّد عبر `securetoken.googleapis.com`. الحالة في `localStorage['amwali_auth']` = `{idToken,refreshToken,exp}`. كل طلبات RTDB تمر عبر `authedUrl()` (تلحق `?auth=<idToken>`)؛ `flushNow` يستخدم `authedUrlSync()` (توكن مخزن فقط، لا await في pagehide). بدون apiKey تعمل المنظومة كالسابق.
+- **تشفير PIN:** `sha256Pin()` عبر `crypto.subtle` بصيغة `sha256:<hex>` (مع salt ثابت `amwali:`). `pinMatch()` يتحقق، والأرقام القديمة النصية تُرقَّى تلقائياً عند أول دخول ناجح. يشمل PIN المستخدمين والقفل العام. `loginConfirm/tryUnlock/setPin/setMyPin` أصبحت async.
+- **firebase-rules.json** يتطلب الآن `auth != null`.
+- **خطوات على طارق في console.firebase.google.com (مشروع our-nice-farm):** ① Authentication ← Sign-in method ← تفعيل Anonymous. ② إعدادات المشروع ← نسخ Web API Key وإدخاله في كل أجهزة العائلة (حقل «مفتاح الأمان»). ③ فقط بعد أن تعمل المزامنة «محمية 🔐» على كل الأجهزة: Realtime Database ← Rules ← لصق firebase-rules.json ← Publish. **الترتيب مهم — نشر القواعد قبل إدخال المفتاح في الأجهزة يقطع مزامنتها.**
 
 > ملاحظة مهمة: قائمة المستخدمين الفعلية تأتي من meta السحابية (بياناتهم الحقيقية: توتوفروتو/أخي/سوسو...) — أسماء DEFAULTS الستة تظهر فقط في التركيبات الجديدة. زر «إكمال أفراد العائلة» في الإعدادات يضيف الناقصين بالاسم. `logout()` يمسح `amwali_me` ويعيد شاشة «من أنت؟» — زر الهيدر وزر «خروج» في الإعدادات كلاهما يستدعيها.
 

@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=7">
+<link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body>
 <div id="toast"></div>
@@ -277,6 +277,8 @@
     <input type="url" id="syncUrl" dir="ltr" placeholder="https://....firebasedatabase.app">
     <label>رمز العائلة (نفس الرمز على جهازك وجهاز أخيك)</label>
     <input type="text" id="syncCode" dir="ltr" placeholder="main">
+    <label>🔐 مفتاح الأمان (Web API Key — اختياري لكنه يحمي القاعدة)</label>
+    <input type="text" id="syncApiKey" dir="ltr" autocomplete="off" placeholder="AIza...">
     <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="syncNow()">🔄 مزامنة الآن</button>
   </div>
 
@@ -470,6 +472,8 @@
     </div>
     <label>رمز العائلة</label>
     <input type="text" id="syncModalCode" dir="ltr" autocomplete="off" placeholder="مثال: shek-2026-x7q">
+    <label>🔐 مفتاح الأمان (اختياري — اطلبه من طارق)</label>
+    <input type="text" id="syncModalKey" dir="ltr" autocomplete="off" placeholder="AIza...">
     <div class="modal-actions">
       <button class="btn btn-primary" onclick="confirmSyncCode()">تفعيل</button>
       <button class="btn btn-ghost" onclick="closeModal('syncModal')">لاحقاً</button>
@@ -477,7 +481,7 @@
   </div>
 </div>
 
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 
 </body>
 </html>

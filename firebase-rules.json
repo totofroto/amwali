@@ -12,9 +12,8 @@
 
     "amwali": {
       "$code": {
-        ".read":  "$code.length >= 16",
-        ".write": "$code.length >= 16",
-        ".validate": true
+        ".read":  "auth != null && $code.length >= 16",
+        ".write": "auth != null && $code.length >= 16"
       }
     }
   }

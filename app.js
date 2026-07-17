@@ -16,7 +16,7 @@ const DEFAULTS={
   ],
   adminId:'u1',
   theme:{preset:0,dark:false,customBg:null},
-  sync:{enabled:true,url:'https://our-nice-farm-default-rtdb.europe-west1.firebasedatabase.app',code:''},
+  sync:{enabled:true,url:'https://our-nice-farm-default-rtdb.europe-west1.firebasedatabase.app',code:'',apiKey:''},
   currencies:[
     {code:'LYD',name:'دينار ليبي'},
     {code:'USD',name:'دولار أمريكي'},
@@ -528,6 +528,7 @@ function renderSettings(){
   // sync
   document.getElementById('syncUrl').value=S.sync.url||'';
   document.getElementById('syncCode').value=S.sync.code||'';   // show the REAL value, never a fake default
+  document.getElementById('syncApiKey').value=S.sync.apiKey||'';
   const tb=document.getElementById('syncToggleBtn');
   tb.textContent=S.sync.enabled?'إيقاف':'تفعيل';
   tb.className='btn btn-sm '+(S.sync.enabled?'btn-red':'btn-primary');
@@ -806,6 +807,20 @@ function buildDebtsReport(){
     body:`<table><thead><tr><th>الشخص</th><th>النوع</th><th>المبلغ</th><th>المُسدَّد</th><th>المتبقي</th><th>التاريخ</th><th>موعد السداد</th><th>الحالة</th><th>ملاحظة</th></tr></thead><tbody>${rows}</tbody></table>`};
 }
 
+/* ================= PIN HASHING — لا تُخزَّن الأرقام السرية نصاً صريحاً ================= */
+async function sha256Pin(s){
+  try{
+    const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('amwali:'+s));
+    return 'sha256:'+[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+  }catch(e){ return null; }   // بيئة غير آمنة (http) — نبقى على النص الصريح
+}
+async function pinMatch(stored,input){
+  if(!stored) return true;
+  if(String(stored).startsWith('sha256:')){ return (await sha256Pin(input))===stored; }
+  return input===stored;      // رقم قديم غير مشفَّر
+}
+async function hashOrPlain(s){ return (await sha256Pin(s))||s; }
+
 /* ================= USER LOGIN — دخول شخصي لكل فرد ================= */
 let loginSel=null;
 function showLogin(){
@@ -832,12 +847,13 @@ function loginPick(id){
     loginConfirm();
   }
 }
-function loginConfirm(){
+async function loginConfirm(){
   if(!loginSel){ document.getElementById('loginErr').textContent='اختر اسمك أولاً'; return; }
   const u=S.users.find(x=>x.id===loginSel); if(!u)return;
   if(u.pin){
     const v=document.getElementById('loginPin').value;
-    if(v!==u.pin){ document.getElementById('loginErr').textContent='رقم سري خاطئ — حاول مجدداً'; document.getElementById('loginPin').value=''; return; }
+    if(!(await pinMatch(u.pin,v))){ document.getElementById('loginErr').textContent='رقم سري خاطئ — حاول مجدداً'; document.getElementById('loginPin').value=''; return; }
+    if(!String(u.pin).startsWith('sha256:')){ const h=await sha256Pin(v); if(h){ u.pin=h; save(); } }   // ترقية رقم قديم
   }
   ME=u.id; try{localStorage.setItem(ME_KEY,ME);}catch(e){}
   document.getElementById('loginPin').value='';
@@ -863,17 +879,18 @@ function loginCheck(){
   const u=me();
   if(!u || u.pin) showLogin();   // no identity yet, or identity is PIN-protected → ask on every open
 }
-function setMyPin(){
+async function setMyPin(){
   const u=me(); if(!u){ showLogin(); return; }
   if(u.pin){
     const cur=prompt('أدخل رقمك السري الحالي:');
     if(cur===null)return;
-    if(cur!==u.pin){toast('⚠️ رقم خاطئ'); return;}
+    if(!(await pinMatch(u.pin,cur))){toast('⚠️ رقم خاطئ'); return;}
   }
   const n=prompt(u.pin?'الرقم الجديد (اتركه فارغاً لإزالته):':'اختر رقماً سرياً لدخولك (4 أرقام أو أكثر):');
   if(n===null)return;
-  u.pin=n.trim()||null; save(); renderSettings();
-  toast(u.pin?'تم تعيين رقمك السري 🔒':'أُزيل رقمك السري 🔓');
+  u.pin=n.trim()?await hashOrPlain(n.trim()):null;
+  save(); renderSettings();
+  toast(u.pin?'تم تعيين رقمك السري 🔒 (مشفَّر)':'أُزيل رقمك السري 🔓');
 }
 function toggleMyPrivacy(){
   const u=me(); if(!u){ toast('⚠️ سجّل دخولك أولاً'); showLogin(); return; }
@@ -882,17 +899,17 @@ function toggleMyPrivacy(){
 }
 
 /* ================= PIN LOCK ================= */
-function setPin(){
+async function setPin(){
   if(S.pin){
     const cur=prompt('أدخل الرقم السري الحالي:');
     if(cur===null)return;
-    if(cur!==S.pin){toast('⚠️ رقم خاطئ'); return;}
+    if(!(await pinMatch(S.pin,cur))){toast('⚠️ رقم خاطئ'); return;}
   }
   const n=prompt(S.pin?'الرقم الجديد (اتركه فارغاً لإزالة القفل):':'اختر رقماً سرياً (4 أرقام أو أكثر):');
   if(n===null)return;
-  S.pin=n.trim()||null;
+  S.pin=n.trim()?await hashOrPlain(n.trim()):null;
   save(); renderSettings();
-  toast(S.pin?'تم تفعيل القفل 🔒':'تمت إزالة القفل 🔓');
+  toast(S.pin?'تم تفعيل القفل 🔒 (مشفَّر)':'تمت إزالة القفل 🔓');
 }
 function lockCheck(){
   if(S.pin){
@@ -900,9 +917,10 @@ function lockCheck(){
     setTimeout(()=>{try{document.getElementById('pinInput').focus();}catch(e){}},150);
   }
 }
-function tryUnlock(){
+async function tryUnlock(){
   const v=document.getElementById('pinInput').value;
-  if(v===S.pin){
+  if(await pinMatch(S.pin,v)){
+    if(S.pin&&!String(S.pin).startsWith('sha256:')){ const h=await sha256Pin(v); if(h){ S.pin=h; save(); } }   // ترقية
     document.getElementById('lockScreen').style.display='none';
     document.getElementById('pinInput').value='';
     document.getElementById('pinErr').textContent='';
@@ -1376,6 +1394,53 @@ const SHADOW_KEY='amwali_shadow_v2';
 const TOMB_TTL=90*24*60*60*1000;   // drop tombstones after 90 days
 
 function syncOn(){ return !!(S.sync && S.sync.enabled && S.sync.url && S.sync.code); }
+
+/* ================= FIREBASE AUTH — مصادقة مجهولة عبر REST (بدون SDK) =================
+   إذا أُدخل مفتاح الويب (apiKey) نحصل على هوية مجهولة من Firebase ونلحق ?auth=<token>
+   بكل الطلبات. بدون مفتاح تعمل المنظومة كالسابق (وضع القواعد المفتوحة).
+   الرموز تُجدَّد تلقائياً عبر refresh_token المخزن على الجهاز. */
+const AUTH_KEY='amwali_auth';
+function loadAuthState(){ try{return JSON.parse(localStorage.getItem(AUTH_KEY))||null;}catch(e){return null;} }
+function saveAuthState(a){ try{localStorage.setItem(AUTH_KEY,JSON.stringify(a));}catch(e){} }
+let authBusy=null;
+async function authToken(){
+  const key=(S.sync.apiKey||'').trim();
+  if(!key) return null;
+  const a=loadAuthState();
+  if(a&&a.idToken&&a.exp>Date.now()+60000) return a.idToken;
+  if(authBusy) return authBusy;
+  authBusy=(async()=>{
+    try{
+      if(a&&a.refreshToken){
+        const r=await fetch('https://securetoken.googleapis.com/v1/token?key='+encodeURIComponent(key),{
+          method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+          body:'grant_type=refresh_token&refresh_token='+encodeURIComponent(a.refreshToken)});
+        if(r.ok){
+          const d=await r.json();
+          const na={idToken:d.id_token,refreshToken:d.refresh_token,exp:Date.now()+(Number(d.expires_in||3600)-120)*1000};
+          saveAuthState(na); return na.idToken;
+        }
+      }
+      const r=await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key='+encodeURIComponent(key),{
+        method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      if(!r.ok) throw 0;
+      const d=await r.json();
+      const na={idToken:d.idToken,refreshToken:d.refreshToken,exp:Date.now()+(Number(d.expiresIn||3600)-120)*1000};
+      saveAuthState(na); return na.idToken;
+    }catch(e){ return null; }
+    finally{ authBusy=null; }
+  })();
+  return authBusy;
+}
+async function authedUrl(url){
+  const t=await authToken();
+  return t ? url+(url.includes('?')?'&':'?')+'auth='+encodeURIComponent(t) : url;
+}
+function authedUrlSync(url){   // للاستخدام في pagehide حيث لا مجال لـ await
+  const a=loadAuthState();
+  const t=(S.sync.apiKey&&a&&a.idToken&&a.exp>Date.now())?a.idToken:null;
+  return t ? url+(url.includes('?')?'&':'?')+'auth='+encodeURIComponent(t) : url;
+}
 function syncBase(){
   const base=S.sync.url.trim().replace(/\/+$/,'');
   const code=encodeURIComponent((S.sync.code||'').trim());
@@ -1428,7 +1493,7 @@ function rebuildShadow(cloudNode){
 function updateSyncStatus(msg){
   const el=document.getElementById('syncStatus');
   if(el) el.textContent=msg||(syncOn()
-    ? ('مفعلة ✅'+(lastSyncStr?' · آخر مزامنة: '+lastSyncStr:''))
+    ? ('مفعلة ✅'+(S.sync.apiKey?' · محمية 🔐':'')+(lastSyncStr?' · آخر مزامنة: '+lastSyncStr:''))
     : 'غير مفعلة — البيانات على هذا الجهاز فقط');
   const b=document.getElementById('syncBanner');
   if(b) b.style.display=syncOn()?'none':'flex';
@@ -1449,12 +1514,12 @@ async function cloudPush(){
     for(const id in d){                               // stamp the live records too
       if(!d[id]._d){ const r=collMap(c)[id]; if(r) r._u=now; }
     }
-    jobs.push(fetch(syncBase()+'/'+c+'.json',{method:'PATCH',body:JSON.stringify(d)}));
+    jobs.push(authedUrl(syncBase()+'/'+c+'.json').then(u=>fetch(u,{method:'PATCH',body:JSON.stringify(d)})));
   }
   const m=metaObj();
   if(!sh.meta || bare(sh.meta)!==bare(m)){
     touched=true; m._u=now; S.metaU=now;
-    jobs.push(fetch(syncBase()+'/meta.json',{method:'PUT',body:JSON.stringify(m)}));
+    jobs.push(authedUrl(syncBase()+'/meta.json').then(u=>fetch(u,{method:'PUT',body:JSON.stringify(m)})));
   }
   if(!touched){ stamp(); return true; }
 
@@ -1531,14 +1596,14 @@ function migrateLegacy(d){
 async function cloudPull(silent){
   if(!syncOn())return false;
   try{
-    const r=await fetch(syncPath()+'?_='+Date.now());
+    const r=await fetch(await authedUrl(syncPath()+'?_='+Date.now()));
     if(!r.ok)throw new Error(r.status);
     let d=await r.json();
     if(!d){ stamp(); return true; }
     if(needsMigration(d)){
       d=migrateLegacy(d);
       // one-time cleanup: replace the legacy node with the clean shape (see SYNC.md)
-      try{ await fetch(syncPath(),{method:'PUT',body:JSON.stringify(d)}); }catch(e){}
+      try{ await fetch(await authedUrl(syncPath()),{method:'PUT',body:JSON.stringify(d)}); }catch(e){}
     }
 
     let changed=false;
@@ -1598,8 +1663,10 @@ async function syncCycle(silent){
 function readSyncInputs(){
   const u=document.getElementById('syncUrl');
   const c=document.getElementById('syncCode');
+  const k=document.getElementById('syncApiKey');
   if(u&&u.value.trim())S.sync.url=u.value.trim();
   if(c)S.sync.code=c.value.trim();
+  if(k&&k.value.trim()!==(S.sync.apiKey||'')){ S.sync.apiKey=k.value.trim(); try{localStorage.removeItem(AUTH_KEY);}catch(e){} }
 }
 async function toggleSync(){
   readSyncInputs();
@@ -1622,6 +1689,8 @@ async function syncNow(){
 function openSyncModal(){
   const i=document.getElementById('syncModalCode');
   if(i) i.value=S.sync.code||'';
+  const k=document.getElementById('syncModalKey');
+  if(k) k.value=S.sync.apiKey||'';
   document.getElementById('syncModal').classList.add('open');
   setTimeout(()=>{ if(i)i.focus(); },150);
 }
@@ -1629,6 +1698,8 @@ async function confirmSyncCode(){
   const i=document.getElementById('syncModalCode');
   const c=(i.value||'').trim();
   if(!c){ toast('⚠️ أدخل رمز العائلة'); return; }
+  const k=document.getElementById('syncModalKey');
+  if(k){ const nk=(k.value||'').trim(); if(nk!==(S.sync.apiKey||'')){ S.sync.apiKey=nk; try{localStorage.removeItem(AUTH_KEY);}catch(e){} } }
   const switching = S.sync.code && S.sync.code!==c;
   S.sync.code=c; S.sync.enabled=true;
   if(switching) clearShadow();          // different ledger → forget the old baseline
@@ -1662,14 +1733,14 @@ async function cloudSnapshot(force){
   if(copy.theme)copy.theme.customBg=null;
   try{
     const ts=Date.now();
-    const r=await fetch(bkPath(ts),{method:'PUT',body:JSON.stringify(copy)});
+    const r=await fetch(await authedUrl(bkPath(ts)),{method:'PUT',body:JSON.stringify(copy)});
     if(!r.ok)throw 0;
     localStorage.setItem('amwali_bkday',day);
     try{
-      const lr=await fetch(bkBase()+'.json?shallow=true');
+      const lr=await fetch(await authedUrl(bkBase()+'.json?shallow=true'));
       const keys=Object.keys(await lr.json()||{}).sort();
       for(const k of keys.slice(0,Math.max(0,keys.length-30)))
-        await fetch(bkPath(k),{method:'DELETE'});
+        await fetch(await authedUrl(bkPath(k)),{method:'DELETE'});
     }catch(e){}
     return true;
   }catch(e){return false;}
@@ -1702,7 +1773,7 @@ async function loadCloudBackups(){
   const el=document.getElementById('histCloud');
   el.innerHTML='<div style="font-size:12px;color:var(--muted)">⏳ جاري التحميل...</div>';
   try{
-    const r=await fetch(bkBase()+'.json?shallow=true');
+    const r=await fetch(await authedUrl(bkBase()+'.json?shallow=true'));
     const keys=Object.keys(await r.json()||{}).sort().reverse();
     el.innerHTML=keys.length?keys.map(k=>
       `<div class="set-row"><div class="s1">☁️ ${fmtTs(Number(k))}</div><button class="btn btn-ghost btn-sm" onclick="restoreCloud('${k}')">↩ استرجاع</button></div>`).join('')
@@ -1711,7 +1782,7 @@ async function loadCloudBackups(){
 }
 async function restoreCloud(k){
   try{
-    const r=await fetch(bkPath(k)); const d=await r.json();
+    const r=await fetch(await authedUrl(bkPath(k))); const d=await r.json();
     if(d)applyRestore(d,'سحابية '+fmtTs(Number(k))); else toast('⚠️ نسخة فارغة');
   }catch(e){toast('⚠️ تعذر الاسترجاع');}
 }
@@ -1745,10 +1816,10 @@ function flushNow(){
     for(const c of COLLS){
       const d=collDiff(c,now,sh);
       if(Object.keys(d).length)
-        fetch(syncBase()+'/'+c+'.json',{method:'PATCH',body:JSON.stringify(d),keepalive:true});
+        fetch(authedUrlSync(syncBase()+'/'+c+'.json'),{method:'PATCH',body:JSON.stringify(d),keepalive:true});
     }
     const m=metaObj(), sm=sh.meta;
-    if(!sm||bare(sm)!==bare(m)){ m._u=now; fetch(syncBase()+'/meta.json',{method:'PUT',body:JSON.stringify(m),keepalive:true}); }
+    if(!sm||bare(sm)!==bare(m)){ m._u=now; fetch(authedUrlSync(syncBase()+'/meta.json'),{method:'PUT',body:JSON.stringify(m),keepalive:true}); }
   }catch(e){}
 }
 window.addEventListener('pagehide',flushNow);
