@@ -1,5 +1,5 @@
 /* ================= STATE ================= */
-const APP_VER='v11';
+const APP_VER='v12';
 const LS_KEY='amwali_v1';
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const today=()=>new Date().toISOString().slice(0,10);
@@ -38,7 +38,7 @@ const DEFAULTS={
       {id:'i3',name:'تجارة',icon:'🏪'},{id:'i4',name:'هدية',icon:'🎁'},{id:'i5',name:'أخرى',icon:'📦'},
     ]
   },
-  tx:[], transfers:[], debts:[], budgets:[], recurring:[], goals:[], audit:[], pin:null,
+  tx:[], transfers:[], debts:[], budgets:[], recurring:[], goals:[], audit:[], logins:[], pin:null,
   sound:true, notify:true
 };
 
@@ -52,6 +52,7 @@ function load(){
   if(!s) s=JSON.parse(JSON.stringify(DEFAULTS));
   // migrations (never reset — the family has real data in here)
   if(!Array.isArray(s.audit)) s.audit=[];
+  if(!Array.isArray(s.logins)) s.logins=[];
   (s.budgets||[]).forEach(b=>{ if(!b.id) b.id='b_'+b.catId+'_'+b.cur; });   // budgets had no id → never synced
   return s;
 }
@@ -618,6 +619,7 @@ function renderSettings(){
   updateSyncStatus();
   renderHist();
   renderAudit();
+  renderLogins();
 }
 function setBg(i){S.theme.preset=i; S.theme.customBg=null; save(); applyTheme(); renderSettings();}
 function renameApp(){
@@ -943,6 +945,39 @@ async function loginConfirm(){
   document.getElementById('loginScreen').style.display='none';
   renderHeader(); if(currentTab==='home')renderHome(); if(currentTab==='settings')renderSettings();
   toast('أهلاً '+u.name+' 👋'); sndOk();
+  logLogin(u);   // تسجيل الدخول مع الموقع التقريبي — لا ينتظر
+}
+
+/* ---- سجل الدخول الجغرافي: من دخل، متى، ومن أين (تقريبي عبر IP) ---- */
+async function logLogin(u){
+  try{
+    let info={};
+    try{
+      const r=await fetch('https://ipwho.is/');
+      const d=await r.json();
+      if(d&&d.success!==false) info={ip:d.ip,city:d.city,country:d.country,flag:(d.flag&&d.flag.emoji)||''};
+    }catch(e){}
+    if(!info.ip){
+      try{
+        const r2=await fetch('https://ipapi.co/json/');
+        const d2=await r2.json();
+        if(d2&&d2.ip) info={ip:d2.ip,city:d2.city,country:d2.country_name,flag:''};
+      }catch(e){}
+    }
+    S.logins=S.logins||[];
+    S.logins.push({id:uid(),ts:Date.now(),user:u.id,ip:info.ip||'؟',city:info.city||'غير معروف',country:info.country||'',flag:info.flag||''});
+    if(S.logins.length>100)S.logins.splice(0,S.logins.length-100);
+    save();
+    if(currentTab==='settings')renderSettings();
+  }catch(e){}
+}
+function renderLogins(){
+  const el=document.getElementById('loginList'); if(!el)return;
+  const list=(S.logins||[]).slice().sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,50);
+  el.innerHTML=list.length?list.map(l=>
+    `<div class="set-row"><div><div class="s1">📍 ${esc(userName(l.user))} ${esc(l.flag||'')}</div>
+      <div class="s2">${esc(l.city)}${l.country?'، '+esc(l.country):''} · <span dir="ltr">${esc(l.ip)}</span> · ${fmtTs(l.ts)}</div></div></div>`).join('')
+    :'<div style="font-size:12px;color:var(--muted)">لا سجلات بعد — سيُسجَّل كل دخول تلقائياً مع المدينة</div>';
 }
 function logout(){
   ME=null; try{localStorage.removeItem(ME_KEY);}catch(e){}
@@ -1471,7 +1506,7 @@ function buildMonthReport(){
 ================================================================================= */
 let currentTab='home', pushTimer=null, lastSyncStr=null, syncBusy=false;
 
-const COLLS=['tx','transfers','debts','budgets','recurring','goals','audit'];
+const COLLS=['tx','transfers','debts','budgets','recurring','goals','audit','logins'];
 const META_KEYS=['appName','appIcon','users','adminId','theme','currencies','cats','pin','sound','notify'];
 const SHADOW_KEY='amwali_shadow_v2';
 const TOMB_TTL=90*24*60*60*1000;   // drop tombstones after 90 days
