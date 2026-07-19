@@ -1,5 +1,5 @@
 /* ================= STATE ================= */
-const APP_VER='v9';
+const APP_VER='v10';
 const LS_KEY='amwali_v1';
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const today=()=>new Date().toISOString().slice(0,10);
@@ -231,7 +231,7 @@ function renderHome(){
       const c=catOf(r.type,r.cat);
       return `<div class="item"><div class="icon">${c.icon}</div><div class="info"><div class="t1">${esc(c.name)}</div><div class="t2">${dateAr(r.date)} · ${esc(userName(r.user))}${r.note?' · '+esc(r.note):''}</div></div><div class="amount ${r.type==='income'?'pos':'neg'}">${r.type==='income'?'+':'−'}${fmt(r.amount)} ${esc(r.cur)}</div></div>`;
     }
-    return `<div class="item"><div class="icon">✈️</div><div class="info"><div class="t1">حوالة إلى ${esc(userName(r.to))}</div><div class="t2">${dateAr(r.date)} · <span class="badge ${r.status==='sent'?'sent':'recv'}">${r.status==='sent'?'⏳ في الطريق':'✅ مستلمة'}</span></div></div><div class="amount warn">${fmt(r.amount)} ${esc(r.cur)}</div></div>`;
+    return `<div class="item"><div class="icon">✈️</div><div class="info"><div class="t1">حوالة إلى ${esc(userName(r.to))}${r.owner&&r.owner!==r.to?' 💼 لصالح '+esc(userName(r.owner)):''}</div><div class="t2">${dateAr(r.date)} · <span class="badge ${r.status==='sent'?'sent':'recv'}">${r.status==='sent'?'⏳ في الطريق':'✅ مستلمة'}</span></div></div><div class="amount warn">${fmt(r.amount)} ${esc(r.cur)}</div></div>`;
   }).join(''):'<div class="empty"><div class="e-ic">📭</div>لا توجد حركات بعد</div>';
   renderFamily(); renderBudgets(); renderGoals();
 }
@@ -243,7 +243,7 @@ function userBalances(id){
   S.tx.forEach(t=>{ if(t.user===id) b[t.cur]=(b[t.cur]||0)+(t.type==='income'?1:-1)*Number(t.amount); });
   S.transfers.forEach(t=>{
     if(t.from===id) b[t.cur]=(b[t.cur]||0)-Number(t.amount);
-    if(t.to===id&&t.status==='received'){
+    if((t.owner||t.to)===id&&t.status==='received'){   // المال يُحسب لصاحبه، لا لمن استلمه فقط
       const c=t.recvCur||t.cur, a=Number(t.recvAmount||t.amount);
       b[c]=(b[c]||0)+a;
     }
@@ -280,6 +280,7 @@ function refreshFormSelects(){
   fillSelect(document.getElementById('trRecvCur'),curOpts);
   fillSelect(document.getElementById('trFrom'),userOpts);
   fillSelect(document.getElementById('trTo'),userOpts);
+  fillSelect(document.getElementById('trOwner'),userOpts,'نفس المُستلِم (الافتراضي)');
   fillSelect(document.getElementById('fCur'),curOpts,'كل العملات');
   fillSelect(document.getElementById('rCur'),curOpts);
   const allCats=[...S.cats.expense.map(c=>({v:c.id,t:c.icon+' '+c.name})),...S.cats.income.map(c=>({v:c.id,t:c.icon+' '+c.name}))];
@@ -398,6 +399,7 @@ function openTransferModal(editId){
     document.getElementById('trRecvAmount').value=t.recvAmount||'';
     document.getElementById('trFrom').value=t.from;
     document.getElementById('trTo').value=t.to;
+    document.getElementById('trOwner').value=t.owner||'';
     document.getElementById('trMethod').value=t.method||'';
     document.getElementById('trDate').value=t.date;
     document.getElementById('trNote').value=t.note||'';
@@ -407,6 +409,7 @@ function openTransferModal(editId){
     document.getElementById('trFrom').value=ME||S.adminId;
     const other=S.users.find(u=>u.id!==(ME||S.adminId));
     if(other)document.getElementById('trTo').value=other.id;
+    document.getElementById('trOwner').value='';
     document.getElementById('trRecvCur').value='LYD';
   }
   document.getElementById('trModal').classList.add('open');
@@ -421,6 +424,7 @@ function saveTransfer(){
     recvCur:document.getElementById('trRecvCur').value,
     from:document.getElementById('trFrom').value,
     to:document.getElementById('trTo').value,
+    owner:document.getElementById('trOwner').value||null,
     method:document.getElementById('trMethod').value.trim(),
     date:document.getElementById('trDate').value||today(),
     note:document.getElementById('trNote').value.trim(),
@@ -464,7 +468,7 @@ function renderTransfers(){
     <div class="item">
       <div class="icon">✈️</div>
       <div class="info">
-        <div class="t1">${esc(userName(t.from))} ← ${esc(userName(t.to))} <span class="badge ${t.status==='sent'?'sent':'recv'}">${t.status==='sent'?'⏳ في الطريق':'✅ مستلمة'}</span></div>
+        <div class="t1">${esc(userName(t.from))} ← ${esc(userName(t.to))}${t.owner&&t.owner!==t.to?' <span style="color:var(--gold,#c9a227);font-weight:700">💼 لصالح '+esc(userName(t.owner))+'</span>':''} <span class="badge ${t.status==='sent'?'sent':'recv'}">${t.status==='sent'?'⏳ في الطريق':'✅ مستلمة'}</span></div>
         <div class="t2">${dateAr(t.date)}${t.method?' · '+esc(t.method):''}${t.rate?' · سعر الصرف: '+t.rate:''}${t.note?' · '+esc(t.note):''}${t.recvDate?' · استُلمت: '+dateAr(t.recvDate):''}</div>
       </div>
       <div style="text-align:left">
@@ -1413,7 +1417,7 @@ function buildTransfersReport(){
   let sent={};
   list.forEach(t=>{sent[t.cur]=(sent[t.cur]||0)+Number(t.amount);});
   const rows=list.map(t=>
-    `<tr><td>${dateAr(t.date)}</td><td>${esc(userName(t.from))}</td><td>${esc(userName(t.to))}</td><td dir="ltr">${fmt(t.amount)} ${esc(t.cur)}</td><td dir="ltr">${t.rate||'—'}</td><td dir="ltr">${t.recvAmount?fmt(t.recvAmount)+' '+esc(t.recvCur):'—'}</td><td>${t.status==='sent'?'في الطريق':'مستلمة'}</td><td>${t.recvDate?dateAr(t.recvDate):'—'}</td><td>${esc(t.note||'')}</td></tr>`).join('');
+    `<tr><td>${dateAr(t.date)}</td><td>${esc(userName(t.from))}</td><td>${esc(userName(t.to))}${t.owner&&t.owner!==t.to?' (لصالح '+esc(userName(t.owner))+')':''}</td><td dir="ltr">${fmt(t.amount)} ${esc(t.cur)}</td><td dir="ltr">${t.rate||'—'}</td><td dir="ltr">${t.recvAmount?fmt(t.recvAmount)+' '+esc(t.recvCur):'—'}</td><td>${t.status==='sent'?'في الطريق':'مستلمة'}</td><td>${t.recvDate?dateAr(t.recvDate):'—'}</td><td>${esc(t.note||'')}</td></tr>`).join('');
   return {title:'كشف الحوالات إلى ليبيا',sub:fM?('شهر: '+fM):'كل الفترات',
     body:`<table><thead><tr><th>تاريخ الإرسال</th><th>المُرسِل</th><th>المُستلِم</th><th>المبلغ</th><th>سعر الصرف</th><th>المُستلَم</th><th>الحالة</th><th>تاريخ الاستلام</th><th>ملاحظة</th></tr></thead><tbody>${rows}</tbody></table>
      <div class="p-tot">${Object.entries(sent).map(([c,v])=>`إجمالي المُرسَل (${c}): ${fmt(v)}`).join(' &nbsp;|&nbsp; ')}</div>`};
