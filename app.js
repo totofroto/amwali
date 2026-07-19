@@ -1,5 +1,5 @@
 /* ================= STATE ================= */
-const APP_VER='v10';
+const APP_VER='v11';
 const LS_KEY='amwali_v1';
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const today=()=>new Date().toISOString().slice(0,10);
@@ -212,14 +212,13 @@ function renderHome(){
     <div class="card"><div class="stat-icon">⬇️</div><h3>دخل هذا الشهر</h3><div class="big pos" style="font-size:17px">${sumLine(incT)}</div></div>
     <div class="card"><div class="stat-icon">⬆️</div><h3>مصروف هذا الشهر</h3><div class="big neg" style="font-size:17px">${sumLine(expT)}</div></div>
     <div class="card"><div class="stat-icon">✈️</div><h3>حوالات في الطريق</h3><div class="big warn">${pend.length}</div></div>`;
-  // balances per currency (all time): income - expense - transfers sent + transfers received in that currency
+  // balances per currency = مجموع أرصدة أفراد العائلة (مصدر حقيقة واحد مع بطاقات الأفراد)
   const bal={};
-  S.tx.forEach(t=>{bal[t.cur]=(bal[t.cur]||0)+(t.type==='income'?1:-1)*Number(t.amount);});
-  S.transfers.forEach(t=>{bal[t.cur]=(bal[t.cur]||0)-Number(t.amount);});
-  const cards=Object.entries(bal).filter(([c,v])=>v!==0||true);
+  S.users.forEach(u=>{ const ub=userBalances(u.id); for(const c in ub) bal[c]=(bal[c]||0)+ub[c]; });
+  const cards=Object.entries(bal).filter(([c,v])=>Math.abs(v)>0.004);
   document.getElementById('balanceCards').innerHTML=cards.length?cards.map(([c,v])=>{
     const cur=S.currencies.find(x=>x.code===c);
-    return `<div class="card"><h3>${esc(cur?cur.name:c)}</h3><div class="big ${v>=0?'pos':'neg'}">${fmt(v)} <span style="font-size:14px">${esc(c)}</span></div><div class="t2" style="font-size:11px;color:var(--muted);margin-top:4px">صافي (الدخل − المصروف − الحوالات المرسلة)</div></div>`;
+    return `<div class="card"><h3>${esc(cur?cur.name:c)}</h3><div class="big ${v>=0?'pos':'neg'}">${fmt(v)} <span style="font-size:14px">${esc(c)}</span></div><div class="t2" style="font-size:11px;color:var(--muted);margin-top:4px">مجموع أرصدة أفراد العائلة</div></div>`;
   }).join(''):'<div class="card empty"><div class="e-ic">🗂️</div>لا توجد بيانات بعد — ابدأ بإضافة دخل أو مصروف</div>';
   // recent: merge tx + transfers by date
   const rec=[
@@ -242,7 +241,9 @@ function userBalances(id){
   const b={};
   S.tx.forEach(t=>{ if(t.user===id) b[t.cur]=(b[t.cur]||0)+(t.type==='income'?1:-1)*Number(t.amount); });
   S.transfers.forEach(t=>{
-    if(t.from===id) b[t.cur]=(b[t.cur]||0)-Number(t.amount);
+    // يُخصم من المُرسِل فقط إذا كان المال من رصيده داخل المنظومة —
+    // الحوالات من الخارج (راتب ألمانيا) أموال جديدة لا تُنقص أحداً
+    if(t.from===id&&t.src==='bal') b[t.cur]=(b[t.cur]||0)-Number(t.amount);
     if((t.owner||t.to)===id&&t.status==='received'){   // المال يُحسب لصاحبه، لا لمن استلمه فقط
       const c=t.recvCur||t.cur, a=Number(t.recvAmount||t.amount);
       b[c]=(b[c]||0)+a;
@@ -380,7 +381,14 @@ function renderTx(){
 }
 
 /* ================= TRANSFERS ================= */
-let trEditId=null;
+let trEditId=null, trSrc='out';
+/* مصدر مال الحوالة: 'out' = من خارج المنظومة (راتب ألمانيا مثلاً — لا يُخصم من أحد)
+                     'bal' = من رصيد المُرسِل داخل المنظومة (يُخصم منه) */
+function setTrSrc(s){
+  trSrc=s;
+  document.getElementById('srcOut').classList.toggle('on',s==='out');
+  document.getElementById('srcBal').classList.toggle('on',s==='bal');
+}
 function calcTransfer(){
   const a=parseFloat(document.getElementById('trAmount').value)||0;
   const r=parseFloat(document.getElementById('trRate').value)||0;
@@ -400,6 +408,7 @@ function openTransferModal(editId){
     document.getElementById('trFrom').value=t.from;
     document.getElementById('trTo').value=t.to;
     document.getElementById('trOwner').value=t.owner||'';
+    setTrSrc(t.src==='bal'?'bal':'out');
     document.getElementById('trMethod').value=t.method||'';
     document.getElementById('trDate').value=t.date;
     document.getElementById('trNote').value=t.note||'';
@@ -410,6 +419,7 @@ function openTransferModal(editId){
     const other=S.users.find(u=>u.id!==(ME||S.adminId));
     if(other)document.getElementById('trTo').value=other.id;
     document.getElementById('trOwner').value='';
+    setTrSrc('out');
     document.getElementById('trRecvCur').value='LYD';
   }
   document.getElementById('trModal').classList.add('open');
@@ -425,6 +435,7 @@ function saveTransfer(){
     from:document.getElementById('trFrom').value,
     to:document.getElementById('trTo').value,
     owner:document.getElementById('trOwner').value||null,
+    src:trSrc,
     method:document.getElementById('trMethod').value.trim(),
     date:document.getElementById('trDate').value||today(),
     note:document.getElementById('trNote').value.trim(),
@@ -469,7 +480,7 @@ function renderTransfers(){
       <div class="icon">✈️</div>
       <div class="info">
         <div class="t1">${esc(userName(t.from))} ← ${esc(userName(t.to))}${t.owner&&t.owner!==t.to?' <span style="color:var(--gold,#c9a227);font-weight:700">💼 لصالح '+esc(userName(t.owner))+'</span>':''} <span class="badge ${t.status==='sent'?'sent':'recv'}">${t.status==='sent'?'⏳ في الطريق':'✅ مستلمة'}</span></div>
-        <div class="t2">${dateAr(t.date)}${t.method?' · '+esc(t.method):''}${t.rate?' · سعر الصرف: '+t.rate:''}${t.note?' · '+esc(t.note):''}${t.recvDate?' · استُلمت: '+dateAr(t.recvDate):''}</div>
+        <div class="t2">${dateAr(t.date)}${t.src==='bal'?' · 👛 من رصيد '+esc(userName(t.from)):' · 🏦 أموال من الخارج'}${t.method?' · '+esc(t.method):''}${t.rate?' · سعر الصرف: '+t.rate:''}${t.note?' · '+esc(t.note):''}${t.recvDate?' · استُلمت: '+dateAr(t.recvDate):''}</div>
       </div>
       <div style="text-align:left">
         <div class="amount">${fmt(t.amount)} ${esc(t.cur)}</div>
@@ -531,8 +542,10 @@ function renderReports(){
       nLabels.push(mm);
       const net=S.tx.filter(t=>t.cur===cur&&t.date.slice(0,7)<=mm)
           .reduce((s,t)=>s+(t.type==='income'?1:-1)*Number(t.amount),0)
-        -S.transfers.filter(t=>t.cur===cur&&t.date.slice(0,7)<=mm)
-          .reduce((s,t)=>s+Number(t.amount),0);
+        -S.transfers.filter(t=>t.cur===cur&&t.src==='bal'&&t.date.slice(0,7)<=mm)
+          .reduce((s,t)=>s+Number(t.amount),0)
+        +S.transfers.filter(t=>(t.recvCur||t.cur)===cur&&t.status==='received'&&t.date.slice(0,7)<=mm)
+          .reduce((s,t)=>s+Number(t.recvAmount||t.amount),0);
       nData.push(net);
     }
     if(netChart)netChart.destroy();
@@ -548,7 +561,7 @@ function renderReports(){
   // summary
   const inc=txM.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
   const exp=txM.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
-  const trM=S.transfers.filter(t=>t.cur===cur&&t.date.startsWith(m)).reduce((s,t)=>s+Number(t.amount),0);
+  const trM=S.transfers.filter(t=>t.cur===cur&&t.src==='bal'&&t.date.startsWith(m)).reduce((s,t)=>s+Number(t.amount),0);
   document.getElementById('rSummary').innerHTML=`
     <div class="summary-line"><span>إجمالي الدخل</span><b class="pos">${fmt(inc)} ${esc(cur)}</b></div>
     <div class="summary-line"><span>إجمالي المصروف</span><b class="neg">${fmt(exp)} ${esc(cur)}</b></div>

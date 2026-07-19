@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=10">
+<link rel="stylesheet" href="styles.css?v=11">
 </head>
 <body>
 <div id="toast"></div>
@@ -369,6 +369,11 @@
     </div>
     <label>💼 صاحب المال — في رصيد مَن تُحسب؟ (مثال: يستلمها دويني لكنها لبدر)</label>
     <select id="trOwner"></select>
+    <label>💶 من أين هذا المال؟</label>
+    <div class="seg">
+      <button id="srcOut" class="inc on" onclick="setTrSrc('out')">🏦 من خارج المنظومة (راتبي)</button>
+      <button id="srcBal" class="exp" onclick="setTrSrc('bal')">👛 يُخصم من رصيد المُرسِل</button>
+    </div>
     <div class="row2">
       <div><label>طريقة الإرسال</label><input type="text" id="trMethod" placeholder="مثال: حوالة مصرفية، صراف..."></div>
       <div><label>تاريخ الإرسال</label><input type="date" id="trDate"></div>
@@ -521,7 +526,7 @@
   </div>
 </div>
 
-<script src="app.js?v=10"></script>
+<script src="app.js?v=11"></script>
 
 </body>
 </html>
