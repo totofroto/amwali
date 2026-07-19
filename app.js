@@ -1,5 +1,5 @@
 /* ================= STATE ================= */
-const APP_VER='v12';
+const APP_VER='v13';
 const LS_KEY='amwali_v1';
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const today=()=>new Date().toISOString().slice(0,10);
@@ -262,6 +262,9 @@ function renderFamily(){
       const ent=Object.entries(userBalances(u.id)).filter(([c,v])=>Math.abs(v)>0.004);
       lines=ent.length?ent.map(([c,v])=>`<div class="big ${v>=0?'pos':'neg'}" style="font-size:15px">${fmt(v)} ${esc(c)}</div>`).join('')
         :'<div class="big" style="font-size:15px;color:var(--muted)">0</div>';
+      const cu=custodyLines(u.id);
+      const extra=[...cu.mine,...cu.theirs];
+      if(extra.length)lines+='<div style="font-size:11px;color:var(--muted);margin-top:5px;line-height:1.8">'+extra.join('<br>')+'</div>';
     }
     return `<div class="card"><h3><span style="font-size:17px">${esc(u.avatar||'👤')}</span> ${esc(u.name)}${u.id===ME?' <span style="color:var(--accent)">(أنت)</span>':''}${u.private?' 🙈':''}</h3>${lines}
       <div style="font-size:10px;color:var(--muted);margin-top:4px">${hidden?'اختار صاحب الحساب الخصوصية':'دخله − مصروفه − ما أرسل + ما استلم'}</div></div>`;
@@ -283,6 +286,9 @@ function refreshFormSelects(){
   fillSelect(document.getElementById('trFrom'),userOpts);
   fillSelect(document.getElementById('trTo'),userOpts);
   fillSelect(document.getElementById('trOwner'),userOpts,'نفس المُستلِم (الافتراضي)');
+  fillSelect(document.getElementById('stOwner'),userOpts);
+  fillSelect(document.getElementById('stHolder'),userOpts);
+  fillSelect(document.getElementById('stCur'),curOpts);
   fillSelect(document.getElementById('fCur'),curOpts,'كل العملات');
   fillSelect(document.getElementById('rCur'),curOpts);
   const allCats=[...S.cats.expense.map(c=>({v:c.id,t:c.icon+' '+c.name})),...S.cats.income.map(c=>({v:c.id,t:c.icon+' '+c.name}))];
@@ -390,6 +396,53 @@ function setTrSrc(s){
   document.getElementById('srcOut').classList.toggle('on',s==='out');
   document.getElementById('srcBal').classList.toggle('on',s==='bal');
 }
+
+/* ---- الأمانات: مال موجود أصلاً عند أحد أفراد العائلة (ملك شخص، محفوظ عند آخر) ----
+   يُسجَّل كحوالة مستلمة kind:'stash' src:'out' owner=صاحب المال، to=الحافظ.
+   النتيجة: يُحسب في رصيد صاحبه فوراً، ويظهر أين هو محفوظ فعلياً. */
+function openStashModal(){
+  refreshFormSelects();
+  document.getElementById('stAmount').value='';
+  document.getElementById('stNote').value='';
+  document.getElementById('stDate').value=today();
+  document.getElementById('stOwner').value=ME||S.adminId;
+  const other=S.users.find(u=>u.id!==(ME||S.adminId));
+  if(other)document.getElementById('stHolder').value=other.id;
+  document.getElementById('stashModal').classList.add('open');
+}
+function saveStash(){
+  const amount=parseFloat(document.getElementById('stAmount').value);
+  if(!amount||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً'); return;}
+  const owner=document.getElementById('stOwner').value;
+  const holder=document.getElementById('stHolder').value;
+  if(owner===holder){toast('⚠️ اختر شخصاً آخر يحفظ المال — أو سجّله كدخل عادي إن كان معك'); return;}
+  const cur=document.getElementById('stCur').value;
+  const date=document.getElementById('stDate').value||today();
+  S.transfers.push({
+    id:uid(), kind:'stash', amount, cur,
+    recvAmount:amount, recvCur:cur,
+    from:owner, to:holder, owner:owner, src:'out',
+    status:'received', date, recvDate:date,
+    method:'مال مخزَّن (أمانة)',
+    note:document.getElementById('stNote').value.trim(),
+    ts:Date.now(), by:ME||S.adminId
+  });
+  save(); closeModal('stashModal'); renderHome(); if(currentTab==='transfers')renderTransfers();
+  toast('سُجلت الأمانة 🏺 — تُحسب في رصيد '+userName(owner)+' وهي محفوظة عند '+userName(holder)); sndCash();
+}
+/* أين المال فعلياً؟ ما يملكه الشخص وهو محفوظ عند غيره، وما يحفظه لغيره */
+function custodyLines(id){
+  const heldFor={}, holds={};
+  S.transfers.forEach(t=>{
+    if(t.status!=='received')return;
+    const own=t.owner||t.to, c=t.recvCur||t.cur, a=Number(t.recvAmount||t.amount);
+    if(own===id&&t.to!==id){ const k=t.to+'|'+c; heldFor[k]=(heldFor[k]||0)+a; }
+    if(t.to===id&&own!==id){ const k=own+'|'+c; holds[k]=(holds[k]||0)+a; }
+  });
+  const line=(o,pre)=>Object.entries(o).filter(([k,v])=>Math.abs(v)>0.004)
+    .map(([k,v])=>{const [uid2,c]=k.split('|'); return pre+' '+esc(userName(uid2))+': '+fmt(v)+' '+esc(c);});
+  return {mine:line(heldFor,'🏺 عند'), theirs:line(holds,'🤲 يحفظ لـ')};
+}
 function calcTransfer(){
   const a=parseFloat(document.getElementById('trAmount').value)||0;
   const r=parseFloat(document.getElementById('trRate').value)||0;
@@ -478,9 +531,11 @@ function renderTransfers(){
     .sort((a,b)=>b.date.localeCompare(a.date)||((b.ts||0)-(a.ts||0)));
   document.getElementById('trList').innerHTML=list.length?list.map(t=>`
     <div class="item">
-      <div class="icon">✈️</div>
+      <div class="icon">${t.kind==='stash'?'🏺':'✈️'}</div>
       <div class="info">
-        <div class="t1">${esc(userName(t.from))} ← ${esc(userName(t.to))}${t.owner&&t.owner!==t.to?' <span style="color:var(--gold,#c9a227);font-weight:700">💼 لصالح '+esc(userName(t.owner))+'</span>':''} <span class="badge ${t.status==='sent'?'sent':'recv'}">${t.status==='sent'?'⏳ في الطريق':'✅ مستلمة'}</span></div>
+        <div class="t1">${t.kind==='stash'
+          ?'🏺 مال '+esc(userName(t.owner||t.from))+' محفوظ عند '+esc(userName(t.to))
+          :esc(userName(t.from))+' ← '+esc(userName(t.to))+(t.owner&&t.owner!==t.to?' <span style="color:var(--gold,#c9a227);font-weight:700">💼 لصالح '+esc(userName(t.owner))+'</span>':'')} <span class="badge ${t.status==='sent'?'sent':'recv'}">${t.kind==='stash'?'🏺 أمانة':(t.status==='sent'?'⏳ في الطريق':'✅ مستلمة')}</span></div>
         <div class="t2">${dateAr(t.date)}${t.src==='bal'?' · 👛 من رصيد '+esc(userName(t.from)):' · 🏦 أموال من الخارج'}${t.method?' · '+esc(t.method):''}${t.rate?' · سعر الصرف: '+t.rate:''}${t.note?' · '+esc(t.note):''}${t.recvDate?' · استُلمت: '+dateAr(t.recvDate):''}</div>
       </div>
       <div style="text-align:left">

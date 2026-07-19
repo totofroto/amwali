@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=12">
+<link rel="stylesheet" href="styles.css?v=13">
 </head>
 <body>
 <div id="toast"></div>
@@ -61,6 +61,7 @@
     <button class="btn btn-green" onclick="openTxModal('income')">＋ دخل</button>
     <button class="btn btn-red" onclick="openTxModal('expense')">－ مصروف</button>
     <button class="btn btn-primary" onclick="openTransferModal()">✈️ حوالة</button>
+    <button class="btn btn-ghost" onclick="openStashModal()">🏺 مال مخزَّن عند شخص</button>
   </div>
   <div class="grid cols3" id="homeStats"></div>
   <div class="section-title">الأرصدة حسب العملة</div>
@@ -491,6 +492,31 @@
   </div>
 </div>
 
+<!-- ===== STASH MODAL — مال مخزَّن عند شخص (أمانة) ===== -->
+<div class="modal-bg" id="stashModal">
+  <div class="modal">
+    <h2>🏺 مال مخزَّن عند شخص<button class="x" onclick="closeModal('stashModal')">✕</button></h2>
+    <div style="font-size:12.5px;color:var(--muted);line-height:1.7;margin-bottom:12px">
+      لتسجيل أموال موجودة أصلاً: <b>ملك</b> شخص، <b>محفوظة عند</b> شخص آخر.<br>
+      تُحسب في رصيد صاحبها، ويظهر تحت بطاقته أين هي محفوظة.
+    </div>
+    <div class="row2">
+      <div><label>المبلغ</label><input type="number" id="stAmount" inputmode="decimal" step="any" min="0" placeholder="0.00"></div>
+      <div><label>العملة</label><select id="stCur"></select></div>
+    </div>
+    <div class="row2">
+      <div><label>💼 صاحب المال</label><select id="stOwner"></select></div>
+      <div><label>🤲 محفوظ عند</label><select id="stHolder"></select></div>
+    </div>
+    <label>التاريخ</label><input type="date" id="stDate">
+    <label>ملاحظة (اختياري)</label><input type="text" id="stNote" placeholder="مثال: مدخرات قديمة في الخزنة">
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="saveStash()">حفظ</button>
+      <button class="btn btn-ghost" onclick="closeModal('stashModal')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== AVATAR / APP-ICON PICKER ===== -->
 <div class="modal-bg" id="avatarModal">
   <div class="modal">
@@ -532,7 +558,7 @@
   </div>
 </div>
 
-<script src="app.js?v=12"></script>
+<script src="app.js?v=13"></script>
 
 </body>
 </html>
