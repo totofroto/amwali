@@ -1,5 +1,5 @@
 /* ================= STATE ================= */
-const APP_VER='v13';
+const APP_VER='v14';
 const LS_KEY='amwali_v1';
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const today=()=>new Date().toISOString().slice(0,10);
@@ -263,7 +263,7 @@ function renderFamily(){
       lines=ent.length?ent.map(([c,v])=>`<div class="big ${v>=0?'pos':'neg'}" style="font-size:15px">${fmt(v)} ${esc(c)}</div>`).join('')
         :'<div class="big" style="font-size:15px;color:var(--muted)">0</div>';
       const cu=custodyLines(u.id);
-      const extra=[...cu.mine,...cu.theirs];
+      const extra=[...cu.self,...cu.mine,...cu.theirs];
       if(extra.length)lines+='<div style="font-size:11px;color:var(--muted);margin-top:5px;line-height:1.8">'+extra.join('<br>')+'</div>';
     }
     return `<div class="card"><h3><span style="font-size:17px">${esc(u.avatar||'👤')}</span> ${esc(u.name)}${u.id===ME?' <span style="color:var(--accent)">(أنت)</span>':''}${u.private?' 🙈':''}</h3>${lines}
@@ -400,6 +400,17 @@ function setTrSrc(s){
 /* ---- الأمانات: مال موجود أصلاً عند أحد أفراد العائلة (ملك شخص، محفوظ عند آخر) ----
    يُسجَّل كحوالة مستلمة kind:'stash' src:'out' owner=صاحب المال، to=الحافظ.
    النتيجة: يُحسب في رصيد صاحبه فوراً، ويظهر أين هو محفوظ فعلياً. */
+/* الرمز اللوني الصامت لمكان الحفظ — سرّ العائلة: 🔵 بنك · 🟡 نقدي.
+   في القوائم تظهر نقطة لون فقط، بلا أي كلمة تكشف مكان المال للغرباء. */
+let stPlace='';
+function setStPlace(p){
+  stPlace=p;
+  document.getElementById('plBank').classList.toggle('on',p==='bank');
+  document.getElementById('plCash').classList.toggle('on',p==='cash');
+  document.getElementById('plNone').classList.toggle('on',!p);
+}
+const pdot=p=>p==='bank'?'<span class="pdot" style="background:#2563eb"></span>'
+             :p==='cash'?'<span class="pdot" style="background:#c9a227"></span>':'';
 function openStashModal(){
   refreshFormSelects();
   document.getElementById('stAmount').value='';
@@ -408,6 +419,7 @@ function openStashModal(){
   document.getElementById('stOwner').value=ME||S.adminId;
   const other=S.users.find(u=>u.id!==(ME||S.adminId));
   if(other)document.getElementById('stHolder').value=other.id;
+  setStPlace('');
   document.getElementById('stashModal').classList.add('open');
 }
 function saveStash(){
@@ -415,7 +427,7 @@ function saveStash(){
   if(!amount||amount<=0){toast('⚠️ أدخل مبلغاً صحيحاً'); return;}
   const owner=document.getElementById('stOwner').value;
   const holder=document.getElementById('stHolder').value;
-  if(owner===holder){toast('⚠️ اختر شخصاً آخر يحفظ المال — أو سجّله كدخل عادي إن كان معك'); return;}
+  if(owner===holder&&!stPlace){toast('⚠️ المال عند صاحبه؟ اختر مكان الحفظ (النقطة الملونة) أو اختر حافظاً آخر'); return;}
   const cur=document.getElementById('stCur').value;
   const date=document.getElementById('stDate').value||today();
   S.transfers.push({
@@ -423,25 +435,28 @@ function saveStash(){
     recvAmount:amount, recvCur:cur,
     from:owner, to:holder, owner:owner, src:'out',
     status:'received', date, recvDate:date,
+    place:stPlace||null,
     method:'مال مخزَّن (أمانة)',
     note:document.getElementById('stNote').value.trim(),
     ts:Date.now(), by:ME||S.adminId
   });
   save(); closeModal('stashModal'); renderHome(); if(currentTab==='transfers')renderTransfers();
-  toast('سُجلت الأمانة 🏺 — تُحسب في رصيد '+userName(owner)+' وهي محفوظة عند '+userName(holder)); sndCash();
+  toast('سُجلت الأمانة 🏺 في رصيد '+userName(owner)); sndCash();
 }
 /* أين المال فعلياً؟ ما يملكه الشخص وهو محفوظ عند غيره، وما يحفظه لغيره */
 function custodyLines(id){
-  const heldFor={}, holds={};
+  const heldFor={}, holds={}, selfP={};
   S.transfers.forEach(t=>{
     if(t.status!=='received')return;
-    const own=t.owner||t.to, c=t.recvCur||t.cur, a=Number(t.recvAmount||t.amount);
-    if(own===id&&t.to!==id){ const k=t.to+'|'+c; heldFor[k]=(heldFor[k]||0)+a; }
-    if(t.to===id&&own!==id){ const k=own+'|'+c; holds[k]=(holds[k]||0)+a; }
+    const own=t.owner||t.to, c=t.recvCur||t.cur, a=Number(t.recvAmount||t.amount), p=t.place||'';
+    if(own===id&&t.to!==id){ const k=t.to+'|'+c+'|'+p; heldFor[k]=(heldFor[k]||0)+a; }
+    if(t.to===id&&own!==id){ const k=own+'|'+c+'|'+p; holds[k]=(holds[k]||0)+a; }
+    if(own===id&&t.to===id&&p){ const k='-|'+c+'|'+p; selfP[k]=(selfP[k]||0)+a; }   // ماله عنده — النقطة فقط تدل أين
   });
-  const line=(o,pre)=>Object.entries(o).filter(([k,v])=>Math.abs(v)>0.004)
-    .map(([k,v])=>{const [uid2,c]=k.split('|'); return pre+' '+esc(userName(uid2))+': '+fmt(v)+' '+esc(c);});
-  return {mine:line(heldFor,'🏺 عند'), theirs:line(holds,'🤲 يحفظ لـ')};
+  const line=(o,pre,withName)=>Object.entries(o).filter(([k,v])=>Math.abs(v)>0.004)
+    .map(([k,v])=>{const [uid2,c,p]=k.split('|');
+      return pre+(withName?' '+esc(userName(uid2)):'')+': '+fmt(v)+' '+esc(c)+' '+pdot(p);});
+  return {mine:line(heldFor,'🏺 عند',true), theirs:line(holds,'🤲 يحفظ لـ',true), self:line(selfP,'💼',false)};
 }
 function calcTransfer(){
   const a=parseFloat(document.getElementById('trAmount').value)||0;
@@ -534,7 +549,7 @@ function renderTransfers(){
       <div class="icon">${t.kind==='stash'?'🏺':'✈️'}</div>
       <div class="info">
         <div class="t1">${t.kind==='stash'
-          ?'🏺 مال '+esc(userName(t.owner||t.from))+' محفوظ عند '+esc(userName(t.to))
+          ?'🏺 مال '+esc(userName(t.owner||t.from))+(t.to!==(t.owner||t.from)?' محفوظ عند '+esc(userName(t.to)):'')+' '+pdot(t.place)
           :esc(userName(t.from))+' ← '+esc(userName(t.to))+(t.owner&&t.owner!==t.to?' <span style="color:var(--gold,#c9a227);font-weight:700">💼 لصالح '+esc(userName(t.owner))+'</span>':'')} <span class="badge ${t.status==='sent'?'sent':'recv'}">${t.kind==='stash'?'🏺 أمانة':(t.status==='sent'?'⏳ في الطريق':'✅ مستلمة')}</span></div>
         <div class="t2">${dateAr(t.date)}${t.src==='bal'?' · 👛 من رصيد '+esc(userName(t.from)):' · 🏦 أموال من الخارج'}${t.method?' · '+esc(t.method):''}${t.rate?' · سعر الصرف: '+t.rate:''}${t.note?' · '+esc(t.note):''}${t.recvDate?' · استُلمت: '+dateAr(t.recvDate):''}</div>
       </div>

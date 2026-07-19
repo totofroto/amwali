@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=13">
+<link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body>
 <div id="toast"></div>
@@ -506,10 +506,16 @@
     </div>
     <div class="row2">
       <div><label>💼 صاحب المال</label><select id="stOwner"></select></div>
-      <div><label>🤲 محفوظ عند</label><select id="stHolder"></select></div>
+      <div><label>🤲 محفوظ عند (يمكن أن يكون صاحبه نفسه)</label><select id="stHolder"></select></div>
+    </div>
+    <label>مكان الحفظ — يظهر في القوائم كنقطة لون فقط، بلا كلمات (سرّ العائلة)</label>
+    <div class="seg">
+      <button id="plBank" onclick="setStPlace('bank')">🔵 بنك</button>
+      <button id="plCash" onclick="setStPlace('cash')">🟡 نقدي</button>
+      <button id="plNone" class="on" onclick="setStPlace('')">بدون</button>
     </div>
     <label>التاريخ</label><input type="date" id="stDate">
-    <label>ملاحظة (اختياري)</label><input type="text" id="stNote" placeholder="مثال: مدخرات قديمة في الخزنة">
+    <label>ملاحظة (اختياري)</label><input type="text" id="stNote" placeholder="اكتب ما تشاء — تجنّب ذكر المكان">
     <div class="modal-actions">
       <button class="btn btn-primary" onclick="saveStash()">حفظ</button>
       <button class="btn btn-ghost" onclick="closeModal('stashModal')">إلغاء</button>
@@ -558,7 +564,7 @@
   </div>
 </div>
 
-<script src="app.js?v=13"></script>
+<script src="app.js?v=14"></script>
 
 </body>
 </html>

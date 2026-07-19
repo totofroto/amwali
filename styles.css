@@ -295,3 +295,7 @@ canvas{max-width:100%}
 .avatar-opt:hover{transform:scale(1.12); border-color:var(--accent2)}
 .avatar-opt.on{border-color:var(--accent); background:var(--accent); box-shadow:0 6px 16px rgba(10,125,110,.35)}
 .icon-chip{padding:9px 12px}
+
+/* النقطة الملونة الصامتة — مكان حفظ المال (سرّ العائلة) */
+.pdot{display:inline-block; width:9px; height:9px; border-radius:99px; margin-inline-start:4px; vertical-align:middle}
+.seg button.on{background:var(--accent); color:#fff}
